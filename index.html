@@ -1,0 +1,1119 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Сборщик КП</title>
+<style>
+:root{
+  --bg:#f3f5f8; --surface:#ffffff; --surface-2:#f7f9fb; --text:#1b2330; --dim:#586374; --border:#d9dfe7;
+  --accent:#1d5fc4; --accent-ink:#ffffff; --accent-soft:#e4eefc;
+  --err:#b3261e; --err-bg:#fdecea;
+  --warn:#8a5300; --warn-bg:#fff3d6; --warn-line:#d99a00;
+  --ok:#256b43; --ok-bg:#e5f4ec;
+  --dis-bg:#e6e9ee; --dis-text:#7a8494; --dis-line:#d3d9e1;
+  --shadow:0 1px 2px rgba(20,30,50,.06);
+  --doc-bg:#ffffff; --doc-text:#161b24; --doc-dim:#566070; --doc-line:#c9d0da; --doc-head:#eef1f5;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0f1318; --surface:#181d25; --surface-2:#1e242d; --text:#e6e9ee; --dim:#9aa4b2; --border:#2d3541;
+    --accent:#7db0ff; --accent-ink:#0b1626; --accent-soft:#1d2d47;
+    --err:#ff8a80; --err-bg:#3a1a18;
+    --warn:#f0c05a; --warn-bg:#3a2e10; --warn-line:#c99a1f;
+    --ok:#6fcf9a; --ok-bg:#16301f;
+    --dis-bg:#242b36; --dis-text:#738093; --dis-line:#2d3541;
+    --shadow:none;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0f1318; --surface:#181d25; --surface-2:#1e242d; --text:#e6e9ee; --dim:#9aa4b2; --border:#2d3541;
+  --accent:#7db0ff; --accent-ink:#0b1626; --accent-soft:#1d2d47;
+  --err:#ff8a80; --err-bg:#3a1a18;
+  --warn:#f0c05a; --warn-bg:#3a2e10; --warn-line:#c99a1f;
+  --ok:#6fcf9a; --ok-bg:#16301f;
+  --dis-bg:#242b36; --dis-text:#738093; --dis-line:#2d3541;
+  --shadow:none;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif}
+.wrap{max-width:1240px;margin:0 auto;padding-left:16px;padding-right:16px}
+header.top{background:var(--surface);border-bottom:1px solid var(--border)}
+.top-in{display:flex;justify-content:space-between;align-items:center;gap:12px;padding-top:12px;padding-bottom:6px}
+h1{font-size:20px;line-height:1.2;margin:0}
+.sub{margin:2px 0 0;color:var(--dim);font-size:13px}
+.tabs{display:flex;gap:4px}
+.tab{background:none;border:0;border-bottom:3px solid transparent;padding:8px 14px;font:inherit;font-weight:600;color:var(--dim);cursor:pointer;min-height:40px}
+.tab:hover{color:var(--text)}
+.tab[aria-selected="true"]{color:var(--accent);border-bottom-color:var(--accent)}
+main{padding-top:16px;padding-bottom:96px}
+.grid{display:grid;gap:16px;grid-template-columns:minmax(0,1fr)}
+@media (min-width:980px){.grid{grid-template-columns:minmax(0,5fr) minmax(0,6fr);align-items:start}}
+.col{display:grid;gap:16px;min-width:0;align-content:start}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px;box-shadow:var(--shadow);min-width:0}
+.card h2{font-size:16px;line-height:1.3;margin:0 0 10px}
+.card h3{font-size:14px;margin:14px 0 6px}
+.hint{color:var(--dim);font-size:12px;margin:6px 0 0}
+.assump{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;margin:0 0 14px;font-size:13px;color:var(--dim)}
+.tag{display:inline-block;font-size:12px;font-weight:700;color:var(--accent);background:var(--accent-soft);border-radius:4px;padding:1px 6px;margin-right:4px}
+label.f{display:grid;gap:3px;font-size:12px;color:var(--dim);font-weight:600}
+label.f.main{font-size:13px}
+.req::after{content:" *";color:var(--err)}
+input,select,textarea{font:inherit;color:var(--text);background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:7px 9px;width:100%;min-height:36px}
+input[type="checkbox"]{width:auto;min-height:0;margin:0}
+textarea{resize:vertical;min-height:64px}
+input:focus-visible,select:focus-visible,textarea:focus-visible,.btn:focus-visible,.tab:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.form{display:grid;gap:10px}
+.two{display:grid;gap:10px;grid-template-columns:1fr 1fr}
+.chkrow{display:flex;gap:8px;align-items:center;font-size:14px;color:var(--text);font-weight:400}
+.btn{font:inherit;font-weight:600;border-radius:6px;padding:7px 12px;border:1px solid var(--border);background:var(--surface);color:var(--text);cursor:pointer;min-height:36px}
+.btn:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
+.btn:active:not(:disabled){transform:translateY(1px)}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.btn.primary:hover:not(:disabled){filter:brightness(1.08);color:var(--accent-ink)}
+.btn.sm{padding:3px 9px;min-height:30px;font-size:13px}
+.btn:disabled,.btn.primary:disabled{background:var(--dis-bg);color:var(--dis-text);border-color:var(--dis-line);cursor:not-allowed}
+.btns{display:flex;flex-wrap:wrap;gap:8px}
+.client{display:grid;grid-template-columns:auto 1fr;gap:3px 12px;margin:10px 0 0;padding:10px;background:var(--surface-2);border-radius:6px;font-size:13px}
+.client dt{color:var(--dim)}
+.client dd{margin:0;overflow-wrap:anywhere}
+.mono{font-family:ui-monospace,Consolas,"Courier New",monospace;font-size:12px;color:var(--dim)}
+.bar{display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-bottom:8px}
+.bar .count{font-size:12px;color:var(--dim)}
+.results{display:grid;gap:10px;max-height:560px;overflow:auto;padding-right:2px;margin-top:10px}
+.pcard{border:1px solid var(--border);border-radius:8px;padding:10px;background:var(--surface-2);display:grid;gap:6px;min-width:0}
+.pcard .head{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.pcard .nm{font-weight:600;overflow-wrap:anywhere}
+.pcard .pr{font-weight:700;white-space:nowrap}
+.meta{display:flex;flex-wrap:wrap;gap:2px 14px;font-size:12px;color:var(--dim)}
+.specs{display:flex;flex-wrap:wrap;gap:2px 12px;margin:0;padding:0;list-style:none;font-size:12px;color:var(--dim)}
+.badges{display:flex;flex-wrap:wrap;gap:4px}
+.badge{display:inline-block;font-size:12px;font-weight:600;border-radius:999px;padding:1px 8px;border:1px solid}
+.badge.err{color:var(--err);background:var(--err-bg);border-color:var(--err)}
+.badge.warn{color:var(--warn);background:var(--warn-bg);border-color:var(--warn-line)}
+.badge.info{color:var(--accent);background:var(--accent-soft);border-color:var(--accent)}
+.line{display:grid;grid-template-columns:minmax(0,1fr) 76px 92px 118px auto;gap:8px 10px;align-items:end;padding:10px 0;border-top:1px solid var(--border);border-left:3px solid transparent;padding-left:8px}
+.line.has-warn{border-left-color:var(--warn-line)}
+.line.has-err{border-left-color:var(--err)}
+.l-name{display:grid;gap:1px;min-width:0}
+.l-name strong{overflow-wrap:anywhere}
+.l-sum{display:grid;gap:3px;font-size:12px;color:var(--dim);font-weight:600}
+.l-sum b{font-size:14px;color:var(--text)}
+@media (max-width:640px){
+  .line{grid-template-columns:1fr 1fr}
+  .l-name{grid-column:1/-1}
+  .two{grid-template-columns:1fr}
+  .btn{min-height:40px}
+  .btn.sm{min-height:34px}
+}
+.totals{display:grid;gap:4px;margin-top:10px;padding-top:10px;border-top:1px solid var(--border)}
+.totals .r{display:flex;justify-content:space-between;gap:8px}
+.totals .r.big{font-size:18px;font-weight:700}
+.empty{color:var(--dim);padding:8px 0}
+.chk{display:flex;gap:4px 8px;align-items:flex-start;flex-wrap:wrap;padding:8px 10px;border-radius:6px;border-left:4px solid;margin:0 0 6px}
+.chk.err{background:var(--err-bg);border-color:var(--err)}
+.chk.warn{background:var(--warn-bg);border-color:var(--warn-line)}
+.chk.ok{background:var(--ok-bg);border-color:var(--ok);color:var(--ok);font-weight:600}
+.chk .lvl{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.02em}
+.chk.err .lvl{color:var(--err)}
+.chk.warn .lvl{color:var(--warn)}
+.chk .msg{flex:1 1 220px;min-width:0;overflow-wrap:anywhere}
+.chklist{list-style:none;margin:0;padding:0}
+.chksum{font-size:13px;color:var(--dim);margin:0 0 8px}
+.hist{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.hist li{border:1px solid var(--border);border-radius:6px;padding:8px 10px;background:var(--surface-2);display:grid;gap:6px}
+.diff{font-size:13px}
+.diff ul{margin:4px 0 0;padding-left:18px}
+.toast{position:fixed;left:50%;bottom:76px;transform:translateX(-50%);background:var(--text);color:var(--bg);padding:8px 14px;border-radius:6px;font-weight:600;z-index:30;max-width:calc(100vw - 32px);box-shadow:0 4px 14px rgba(0,0,0,.25)}
+.fab{position:fixed;right:16px;bottom:16px;z-index:20;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:999px;padding:11px 18px;font:inherit;font-weight:700;cursor:pointer;box-shadow:0 3px 12px rgba(0,0,0,.28);min-height:44px}
+.fab:hover{border-color:var(--accent);color:var(--accent)}
+.foot{padding-top:8px;padding-bottom:84px;color:var(--dim);font-size:13px;text-align:center}
+dialog{border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);padding:16px;width:min(520px,calc(100vw - 32px))}
+dialog::backdrop{background:rgba(0,0,0,.45)}
+dialog h2{margin:0 0 8px;font-size:16px}
+#selftest-banner{position:sticky;top:0;z-index:50;padding:8px 16px;font-weight:700;font-family:ui-monospace,Consolas,monospace}
+#selftest-banner.pass{background:var(--ok-bg);color:var(--ok)}
+#selftest-banner.fail{background:var(--err-bg);color:var(--err)}
+/* вкладка Как устроено */
+.scheme-scroll{overflow-x:auto}
+.scheme-scroll svg{display:block;width:100%;height:auto;min-width:860px;max-height:70vh}
+.sv text{font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;font-size:13px;fill:var(--text)}
+.sv .sv-title{font-size:15px;font-weight:700}
+.sv .sv-num{font-size:11px;fill:var(--dim)}
+.sv .sv-tag{font-size:10px;font-weight:700;fill:var(--accent)}
+.sv .sv-box{fill:var(--surface-2);stroke:var(--border);stroke-width:1.2}
+.sv .sv-auto{fill:var(--accent-soft);stroke:var(--accent);stroke-width:1.8}
+.sv .sv-later{fill:none;stroke:var(--dim);stroke-width:1.2;stroke-dasharray:4 3}
+.sv .sv-cap{font-size:11px;fill:var(--dim)}
+.sv .sv-line{stroke:var(--dim);stroke-width:1.4;fill:none}
+.sv .sv-arrow{fill:var(--dim)}
+.legend{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:13px;margin-top:8px}
+.legend i{display:inline-block;width:14px;height:14px;border-radius:3px;vertical-align:-2px;margin-right:6px;border:1.5px solid var(--border);background:var(--surface-2)}
+.legend i.a{background:var(--accent-soft);border-color:var(--accent)}
+.legend i.l{background:none;border:1.5px dashed var(--dim)}
+.tbl{width:100%;border-collapse:collapse;font-size:13px}
+.tbl th{text-align:left;font-size:12px;color:var(--dim);padding:6px 8px;border-bottom:2px solid var(--border)}
+.tbl td{padding:7px 8px;border-bottom:1px solid var(--border);vertical-align:top}
+@media (max-width:640px){
+  .stack thead{display:none}
+  .stack tr{display:block;border:1px solid var(--border);border-radius:6px;margin-bottom:8px;padding:4px 0;background:var(--surface-2)}
+  .stack td{display:block;border:0;padding:3px 10px}
+  .stack td::before{content:attr(data-l);display:block;font-size:12px;font-weight:700;color:var(--dim)}
+}
+.layers{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
+.layer{border:1px solid var(--border);border-radius:8px;padding:10px;background:var(--surface-2)}
+.layer b{display:block;margin-bottom:3px}
+.layer .n{display:inline-block;width:22px;height:22px;line-height:22px;text-align:center;border-radius:50%;background:var(--accent);color:var(--accent-ink);font-size:12px;font-weight:700;margin-right:6px}
+.cols2{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}
+.main3{display:grid;gap:12px;grid-template-columns:repeat(3,minmax(0,1fr))}
+@media (max-width:760px){.main3{grid-template-columns:1fr}}
+.mini{border:1px solid var(--border);border-radius:8px;padding:12px;background:var(--surface-2)}
+.mini b{display:block;margin-bottom:4px}
+.mini.a{border-color:var(--accent);background:var(--accent-soft)}
+.mini ul{margin:0;padding-left:18px}
+.mini li{margin-bottom:3px}
+.layer span.cap{display:block;color:var(--dim);font-size:13px}
+.cols2 ul,.plain{margin:4px 0 0;padding-left:18px}
+.plain li{margin-bottom:3px}
+.fbitem{border-top:1px solid var(--border);padding:8px 0}
+.fbitem .m{font-size:12px;color:var(--dim)}
+.fbitem p{margin:2px 0 0;white-space:pre-wrap;overflow-wrap:anywhere}
+details summary{cursor:pointer;color:var(--accent);font-weight:600;margin-top:10px}
+/* предпросмотр и документ КП */
+.pv-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px}
+.pv-note{font-size:13px;color:var(--dim);flex:1 1 200px}
+.doc{background:var(--doc-bg);color:var(--doc-text);border:1px solid var(--doc-line);border-radius:4px;padding:28px;max-width:860px;margin:0 auto;font-size:13px;line-height:1.5}
+.doc h3{font-size:13px;text-transform:uppercase;letter-spacing:.04em;margin:16px 0 4px;color:var(--doc-dim)}
+.doc p{margin:2px 0}
+.doc ul{margin:2px 0;padding-left:18px}
+.doc-head{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;border-bottom:2px solid var(--doc-text);padding-bottom:10px}
+.doc-seller{font-size:18px;font-weight:700}
+.doc-meta{text-align:right;font-size:12px}
+.doc-tablewrap{overflow-x:auto;margin-top:8px}
+.doc table{width:100%;border-collapse:collapse;font-size:12px}
+.doc th{background:var(--doc-head);text-align:left;padding:5px 6px;border:1px solid var(--doc-line)}
+.doc td{padding:5px 6px;border:1px solid var(--doc-line);vertical-align:top}
+.doc .num{text-align:right;white-space:nowrap}
+.doc-tot{margin:8px 0 0 auto;max-width:300px}
+.doc-tot div{display:flex;justify-content:space-between;gap:12px;padding:2px 0}
+.doc-tot .big{font-size:15px;font-weight:700;border-top:2px solid var(--doc-text);margin-top:4px;padding-top:4px}
+.doc-note{margin-top:14px;font-size:11px;color:var(--doc-dim)}
+@page{size:A4;margin:14mm}
+@media print{
+  html,body{background:#fff!important}
+  header.top,footer.foot,.fab,.no-print,#view-build,#view-how,#toast,#selftest-banner,dialog{display:none!important}
+  #view-preview{display:block!important}
+  .wrap{max-width:none;padding:0}
+  main{padding:0}
+  .doc{border:0;border-radius:0;padding:0;max-width:none;font-size:10.5pt}
+  .doc-tablewrap{overflow:visible}
+  .doc table{font-size:9.5pt}
+  .doc tr{break-inside:avoid}
+  .doc thead{display:table-header-group}
+  .doc-head,.doc section,.doc-tot{break-inside:avoid}
+}
+</style>
+</head>
+<body>
+<div id="selftest-banner" hidden></div>
+<header class="top">
+  <div class="wrap top-in">
+    <div>
+      <h1>Сборщик КП</h1>
+      <p class="sub">Внутренний инструмент менеджера по продажам оборудования для автосервисов</p>
+    </div>
+    <button id="theme-btn" class="btn sm" type="button" title="Переключить тему">Тема: авто</button>
+  </div>
+  <nav class="wrap tabs" role="tablist" aria-label="Разделы">
+    <button class="tab" role="tab" data-tab="build" type="button">Сборка КП</button>
+    <button class="tab" role="tab" data-tab="how" type="button">Как устроено</button>
+  </nav>
+</header>
+
+<main class="wrap">
+<!-- ===== Вкладка: Сборка КП ===== -->
+<section id="view-build" aria-label="Сборка КП">
+  <p class="assump">
+    <span><span class="tag">допущение</span>лимит скидки без согласования: 10%</span>
+    <span><span class="tag">допущение</span>цена в КП действует 14 дней</span>
+  </p>
+  <div class="grid">
+    <div class="col">
+      <div class="card">
+        <h2>Сделка</h2>
+        <label class="f main" for="deal-sel"><span>Сделка</span>
+          <select id="deal-sel"></select>
+        </label>
+        <dl class="client" id="client"></dl>
+        <p class="hint">Клиент и реквизиты из сделки Битрикс24 (заглушка), только чтение.</p>
+      </div>
+
+      <div class="card">
+        <h2>Запрос клиента</h2>
+        <div class="form">
+          <label class="f main" for="req-need"><span class="req">Что нужно</span>
+            <textarea id="req-need" rows="3" placeholder="Например: оснастить шиномонтажную зону" autocomplete="off"></textarea>
+          </label>
+          <div class="two">
+            <label class="f main" for="req-budget"><span class="req">Бюджет, ₽</span>
+              <input id="req-budget" type="number" min="0" step="1000" inputmode="numeric" autocomplete="off">
+            </label>
+            <label class="f main" for="req-date"><span class="req">Требуемая дата поставки</span>
+              <input id="req-date" type="date" autocomplete="off">
+            </label>
+          </div>
+          <label class="chkrow" for="req-analog"><input id="req-analog" type="checkbox"> Аналог допустим</label>
+          <div class="btns"><button id="btn-demo" class="btn sm" type="button">Подставить пример запроса</button></div>
+        </div>
+        <p class="hint">Поля со звёздочкой обязательны, без них КП не сформировать.</p>
+      </div>
+
+      <div class="card">
+        <h2>Подбор из каталога (PIM)</h2>
+        <label class="f main" for="search"><span>Артикул или часть названия</span>
+          <input id="search" type="search" placeholder="Например: TC-ST или компрессор" autocomplete="off">
+        </label>
+        <div class="bar" style="margin-top:8px">
+          <span class="count" id="count"></span>
+          <button id="btn-reset-cat" class="btn sm" type="button">Сбросить каталог</button>
+        </div>
+        <div class="results" id="results" aria-live="polite"></div>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="card">
+        <h2>Состав КП</h2>
+        <div id="lines"></div>
+        <div class="two" style="margin-top:10px">
+          <label class="f" for="kp-disc"><span>Скидка на весь КП, %</span>
+            <input id="kp-disc" type="number" min="0" max="100" step="0.5" value="0" autocomplete="off">
+          </label>
+        </div>
+        <div class="totals" id="totals">
+          <div class="r"><span>Сумма по позициям</span><span id="t-sub"></span></div>
+          <div class="r"><span>Скидка на КП</span><span id="t-disc"></span></div>
+          <div class="r big"><span>Итого</span><span id="t-total"></span></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Проверки</h2>
+        <p class="chksum" id="chk-sum"></p>
+        <div id="notice"></div>
+        <ul class="chklist" id="checks"></ul>
+        <div class="btns" style="margin-top:10px">
+          <button id="btn-preview" class="btn" type="button">Предпросмотр</button>
+          <button id="btn-gen" class="btn primary" type="button">Сформировать КП</button>
+          <button id="btn-clear" class="btn" type="button">Очистить черновик</button>
+        </div>
+        <p class="hint" id="gen-hint"></p>
+      </div>
+
+      <div class="card">
+        <h2>История КП</h2>
+        <div id="history"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== Предпросмотр ===== -->
+<section id="view-preview" hidden aria-label="Предпросмотр КП">
+  <div class="pv-bar no-print">
+    <button id="pv-back" class="btn" type="button">Назад к сборке</button>
+    <button id="pv-print" class="btn primary" type="button">Печать / PDF</button>
+    <button id="pv-gen" class="btn" type="button">Сформировать КП</button>
+    <span class="pv-note" id="pv-note"></span>
+  </div>
+  <article class="doc" id="doc"></article>
+</section>
+
+<!-- ===== Вкладка: Как устроено ===== -->
+<section id="view-how" hidden aria-label="Как устроено">
+  <div class="col">
+    <div class="card">
+      <h2>Как сейчас и как будет</h2>
+      <div class="scheme-scroll">
+        <svg id="scheme" class="sv" viewBox="0 0 1200 292" role="img" aria-label="Схема: как менеджер готовит КП сейчас вручную за девять шагов и как будет в инструменте за семь шагов, три из них инструмент делает сам"></svg>
+      </div>
+      <div class="legend">
+        <span><i></i>делает менеджер</span>
+        <span><i class="a"></i>делает инструмент сам</span>
+        <span><i class="l"></i>в следующих версиях</span>
+      </div>
+      <details>
+        <summary>Те же шаги списком</summary>
+        <div class="cols2">
+          <div><b>Как сейчас (вручную)</b>
+            <ol class="plain"><li>Разговор с клиентом</li><li>Поиск в PIM</li><li>Копирование в Word</li><li>Подстановка цен</li><li>Расчёт</li><li>Самопроверка</li><li>PDF</li><li>Прикрепить в Битрикс24</li><li>Отправка</li></ol></div>
+          <div><b>Как будет</b>
+            <ol class="plain"><li>Разговор с клиентом</li><li>Запрос клиента (позже: из расшифровки разговора)</li><li>Подбор в «Сборщике КП» (поиск по каталогу PIM)</li><li>Проверки (авто)</li><li>PDF и снимок КП (авто)</li><li>В сделку Битрикс24: файл, позиции, сумма (авто)</li><li>Отправка клиенту</li></ol></div>
+        </div>
+      </details>
+    </div>
+
+    <div class="card">
+      <h2>Главное</h2>
+      <div class="main3">
+        <div class="mini a"><b>Делает сам</b>
+          <ul><li>Подставляет данные, считает итог и номер</li><li>Проверяет цену, статус, скидку, сроки, бюджет</li><li>Сохраняет снимки КП, правка даёт версию</li></ul></div>
+        <div class="mini"><b>Решает менеджер</b>
+          <ul><li>Состав и количество позиций</li><li>Скидка и условия</li><li>Сопроводительный текст, просмотр, отправка</li></ul></div>
+        <div class="mini"><b>Не войдёт в первую версию</b>
+          <ul><li>Автоподбор товаров ИИ</li><li>Согласование скидок, отправка, электронная подпись</li><li>Остатки склада, шаблоны, отчёты, мобильная версия</li></ul></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Что дальше</h2>
+      <div class="layers">
+        <div class="layer"><b><span class="n">1</span>КП ссылкой</b><span class="cap">Видно, открыл ли клиент</span></div>
+        <div class="layer"><b><span class="n">2</span>Сверка «КП → счёт»</b><span class="cap">Ошибка не уйдёт в счёт</span></div>
+        <div class="layer"><b><span class="n">3</span>Разбор выигравших КП</b><span class="cap">Лучшее идёт в шаблон</span></div>
+        <div class="layer"><b><span class="n">4</span>Запрос из разговора</b><span class="cap">Заполняется из расшифровки</span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Подробности</h2>
+      <details>
+        <summary>Нестандартные ситуации (6)</summary>
+        <table class="tbl stack">
+          <thead><tr><th>Ситуация</th><th>Что делает инструмент</th><th>Что делает менеджер</th></tr></thead>
+          <tbody>
+            <tr><td data-l="Ситуация">Нет цены или цена 0</td><td data-l="Что делает инструмент">Не даёт добавить позицию, пишет, к кому обратиться</td><td data-l="Что делает менеджер">Запрашивает цену</td></tr>
+            <tr><td data-l="Ситуация">Товар снят с продажи</td><td data-l="Что делает инструмент">Не добавляет, показывает аналог</td><td data-l="Что делает менеджер">Выбирает замену</td></tr>
+            <tr><td data-l="Ситуация">Срок поставки позже нужного клиенту</td><td data-l="Что делает инструмент">Предупреждает</td><td data-l="Что делает менеджер">Предлагает аналог или договаривается о сроке</td></tr>
+            <tr><td data-l="Ситуация">Цена изменилась после добавления</td><td data-l="Что делает инструмент">Перед формированием показывает старую и новую цену</td><td data-l="Что делает менеджер">Подтверждает новую</td></tr>
+            <tr><td data-l="Ситуация">Скидка выше лимита</td><td data-l="Что делает инструмент">Подсвечивает</td><td data-l="Что делает менеджер">Согласует с руководителем</td></tr>
+            <tr><td data-l="Ситуация">Итог выше бюджета клиента</td><td data-l="Что делает инструмент">Предупреждает</td><td data-l="Что делает менеджер">Решает, что убрать или как объяснить</td></tr>
+          </tbody>
+        </table>
+        <p class="hint">Дубль артикула в PIM тоже не даёт добавить позицию: инструмент просит уточнить у контент-менеджера.</p>
+      </details>
+      <details>
+        <summary>Как поймём, что инструмент помогает (4)</summary>
+        <table class="tbl stack">
+          <thead><tr><th>Показатель</th><th>До запуска</th><th>После</th><th>Порог успеха</th></tr></thead>
+          <tbody>
+            <tr><td data-l="Показатель">Время на КП, мин</td><td data-l="До запуска">Хронометраж 20-30 КП у 2-3 менеджеров</td><td data-l="После">Инструмент пишет время старта и формирования</td><td data-l="Порог успеха">-40 %</td></tr>
+            <tr><td data-l="Показатель">Доля КП с ошибкой</td><td data-l="До запуска">Сверка 50 последних КП с PIM и с переотправленными версиями</td><td data-l="После">Та же сверка на КП из инструмента</td><td data-l="Порог успеха">вдвое меньше</td></tr>
+            <tr><td data-l="Показатель">Доля КП через инструмент</td><td data-l="До запуска">нет</td><td data-l="После">Из журнала инструмента</td><td data-l="Порог успеха">не меньше 80 % у пилотных менеджеров</td></tr>
+            <tr><td data-l="Показатель">Часы от запроса клиента до отправки КП</td><td data-l="До запуска">История сделок Битрикс24</td><td data-l="После">Снимок КП</td><td data-l="Порог успеха">после замера</td></tr>
+          </tbody>
+        </table>
+        <p class="hint">Пороги ориентировочные, их согласуем с руководителем отдела продаж. Последний показатель пока гипотеза: сначала проверим на ваших данных, что ранняя отправка КП связана с выигрышем.</p>
+      </details>
+    </div>
+
+    <div class="card">
+      <h2>Отзывы</h2>
+      <div id="fb-list"></div>
+    </div>
+  </div>
+</section>
+</main>
+
+<footer class="foot wrap">Прототип. Все товары, цены и клиенты условные.</footer>
+
+<button id="fab" class="fab" type="button">Неудобно / предложение</button>
+<div id="toast" class="toast" role="status" hidden></div>
+
+<dialog id="fb-dialog" aria-labelledby="fb-title">
+  <h2 id="fb-title">Неудобно / предложение</h2>
+  <p class="hint" id="fb-ctx" style="margin:0 0 8px"></p>
+  <label class="f" for="fb-text"><span>Что неудобно или что предложить</span>
+    <textarea id="fb-text" rows="5" autocomplete="off"></textarea>
+  </label>
+  <div class="btns" style="margin-top:12px;justify-content:flex-end">
+    <button id="fb-cancel" class="btn" type="button">Отмена</button>
+    <button id="fb-save" class="btn primary" type="button">Сохранить</button>
+  </div>
+</dialog>
+
+<script>
+'use strict';
+// ==PURE-START==
+// ---------- допущения ----------
+const DISCOUNT_LIMIT = 10;   // допущение: лимит скидки без согласования, %
+const VALID_DAYS = 14;       // допущение: срок действия цены в КП, дней
+const LONG_LEAD_DAYS = 30;   // с этого срока поставки карточка помечается «долгий срок»
+const SELLER = 'АО «Пример» (условно)';
+
+// ---------- данные (условные) ----------
+const CATALOG = [
+  {sku:'LFT-2P-4000', name:'Подъёмник двухстоечный 4 т, электрогидравлический', category:'Подъёмники', price:189000, status:'active', leadDays:7, specs:{'Грузоподъёмность':'4 т','Высота подъёма':'1,9 м','Питание':'380 В'}},
+  {sku:'LFT-2P-5000', name:'Подъёмник двухстоечный 5 т, с верхней синхронизацией', category:'Подъёмники', price:214000, status:'active', leadDays:45, specs:{'Грузоподъёмность':'5 т','Высота подъёма':'2,0 м','Питание':'380 В'}},
+  {sku:'LFT-SC-3000', name:'Подъёмник ножничный 3 т, подкатной', category:'Подъёмники', price:168500, status:'active', leadDays:5, specs:{'Грузоподъёмность':'3 т','Высота подъёма':'1,0 м','Питание':'220 В'}},
+  {sku:'LFT-4P-5500', name:'Подъёмник четырёхстоечный 5,5 т для развал-схождения', category:'Подъёмники', price:395000, status:'active', leadDays:60, specs:{'Грузоподъёмность':'5,5 т','Длина платформ':'5,0 м','Питание':'380 В'}},
+  {sku:'TC-ST-24', name:'Шиномонтажный станок автомат, диски до 24"', category:'Шиномонтаж', price:99500, status:'active', leadDays:8, specs:{'Диаметр диска':'до 24"','Питание':'380 В','Тип':'автомат'}},
+  {sku:'TC-ST-22', name:'Шиномонтажный станок полуавтомат, диски до 22"', category:'Шиномонтаж', price:78400, status:'discontinued', leadDays:14, analogSku:'TC-ST-24', specs:{'Диаметр диска':'до 22"','Питание':'220 В','Тип':'полуавтомат'}},
+  {sku:'TC-HELP-01', name:'Помощник (третья рука) для шиномонтажного станка', category:'Шиномонтаж', price:42300, status:'active', leadDays:3, specs:{'Совместимость':'станки до 24"','Ход рычага':'320 мм'}},
+  {sku:'WB-CAR-10', name:'Балансировочный станок для легковых, ЖК-дисплей', category:'Балансировка', price:72400, status:'active', leadDays:6, specs:{'Диаметр диска':'10"-26"','Масса колеса':'до 65 кг','Питание':'220 В'}},
+  {sku:'WB-TRK-20', name:'Балансировочный станок для грузовых, до 200 кг', category:'Балансировка', price:null, status:'active', leadDays:10, specs:{'Масса колеса':'до 200 кг','Питание':'380 В'}},
+  {sku:'WB-CLIP-05', name:'Грузики клеевые 5 г, коробка 100 шт', category:'Балансировка', price:0, status:'active', leadDays:4, specs:{'Масса':'5 г','В коробке':'100 шт'}},
+  {sku:'CP-100-500', name:'Компрессор поршневой 100 л, 500 л/мин', category:'Компрессоры', price:41200, status:'active', leadDays:4, specs:{'Ресивер':'100 л','Производительность':'500 л/мин','Давление':'10 бар'}},
+  {sku:'CP-SCR-7', name:'Компрессор винтовой 7,5 кВт с ресивером 270 л', category:'Компрессоры', price:238000, status:'active', leadDays:14, specs:{'Мощность':'7,5 кВт','Ресивер':'270 л','Давление':'10 бар'}},
+  {sku:'CP-DRY-01', name:'Осушитель сжатого воздуха рефрижераторный', category:'Компрессоры', price:56700, status:'active', leadDays:9, specs:{'Расход':'850 л/мин','Питание':'220 В'}},
+  {sku:'DG-SCAN-01', name:'Мультимарочный диагностический сканер', category:'Диагностика', price:87900, status:'active', leadDays:5, specs:{'Покрытие':'более 60 марок','Связь':'Wi-Fi, USB'}},
+  {sku:'DG-OSC-02', name:'Автомобильный осциллограф, 4 канала', category:'Диагностика', price:63500, status:'active', leadDays:10, specs:{'Каналов':'4','Полоса':'20 МГц'}},
+  {sku:'DG-GAS-01', name:'Газоанализатор 4-компонентный', category:'Диагностика', price:71200, status:'active', leadDays:7, specs:{'Компонентов':'4','Поверка':'в комплекте'}},
+  {sku:'AL-3D-01', name:'Стенд развал-схождения 3D, 4 камеры', category:'Развал-схождение', price:612000, status:'active', leadDays:12, specs:{'Камер':'4','База данных':'более 40 000 моделей','Питание':'220 В'}},
+  {sku:'AL-3D-LITE', name:'Стенд развал-схождения 3D, 2 камеры', category:'Развал-схождение', price:438000, status:'active', leadDays:11, specs:{'Камер':'2','База данных':'более 30 000 моделей'}},
+  {sku:'AL-TGT-01', name:'Мишени для стенда развал-схождения, комплект 4 шт', category:'Развал-схождение', price:28400, status:'active', leadDays:5, specs:{'В комплекте':'4 шт','Крепление':'на диск'}},
+  {sku:'AL-TGT-01', name:'Мишени для стенда развал-схождения, комплект 4 шт (старая карточка)', category:'Развал-схождение', price:31200, status:'active', leadDays:7, specs:{'В комплекте':'4 шт'}}
+];
+const DEALS = [
+  {id:'D-1001', title:'Оснащение шиномонтажной зоны', client:{name:'ООО «Автосервис Пример»', inn:'0000000000', contact:'Иван Примеров', phone:'+7 000 000-00-01'}},
+  {id:'D-1002', title:'Пост диагностики и развал-схождения', client:{name:'ООО «СТО Образец»', inn:'0000000001', contact:'Пётр Образцов', phone:'+7 000 000-00-02'}}
+];
+// пример запроса для показа (дата считается от сегодняшнего дня)
+const DEMO_REQUESTS = {
+  'D-1001': {need:'Оснастить шиномонтажную зону: станок, балансировка, компрессор, подъёмник', budget:400000, days:30, analogOk:true},
+  'D-1002': {need:'Диагностика и развал-схождение: сканер, газоанализатор, стенд 3D', budget:900000, days:45, analogOk:false}
+};
+
+// ---------- деньги: целые копейки ----------
+const toKop = r => Math.round(r * 100);
+function lineKop(priceRub, qty, discPct){
+  const bp = Math.round(discPct * 100);                       // скидка в сотых долях процента
+  return Math.round(toKop(priceRub) * qty * (10000 - bp) / 10000);
+}
+// lines: [{price, qty, discountPct}] -> суммы в копейках
+function calcTotals(lines, kpDiscountPct){
+  const lineKops = lines.map(l => lineKop(l.price, l.qty, l.discountPct));
+  const subtotalKop = lineKops.reduce((a, b) => a + b, 0);
+  const totalKop = Math.round(subtotalKop * (10000 - Math.round(kpDiscountPct * 100)) / 10000);
+  return {lineKops, subtotalKop, kpDiscountKop: subtotalKop - totalKop, totalKop};
+}
+function stateTotals(state){
+  return calcTotals(state.lines.map(l => ({price:l.priceAtAdd, qty:l.qty, discountPct:l.discountPct})), state.kpDiscountPct);
+}
+const nf0 = new Intl.NumberFormat('ru-RU', {style:'currency', currency:'RUB', maximumFractionDigits:0});
+const nf2 = new Intl.NumberFormat('ru-RU', {style:'currency', currency:'RUB', minimumFractionDigits:2, maximumFractionDigits:2});
+const fmtKop = kop => (kop % 100 === 0 ? nf0 : nf2).format(kop / 100);
+const fmtRub = r => fmtKop(toKop(r));
+
+// ---------- даты (ISO гггг-мм-дд) ----------
+function isoDate(d){
+  const p = n => String(n).padStart(2, '0');
+  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+}
+function addDays(iso, n){
+  const d = new Date(Date.UTC(+iso.slice(0, 4), +iso.slice(5, 7) - 1, +iso.slice(8, 10) + n));
+  return d.toISOString().slice(0, 10);
+}
+const fmtDate = iso => iso ? iso.slice(8, 10) + '.' + iso.slice(5, 7) + '.' + iso.slice(0, 4) : '';
+
+// ---------- каталог ----------
+function applyOverrides(cat, ov){
+  return cat.map(p => (p.price > 0 && ov && ov[p.sku] != null) ? Object.assign({}, p, {price: ov[p.sku]}) : p);
+}
+const bumpPrice = price => Math.round(price * 1.07);   // имитация роста цены в PIM: +7%, до рубля
+function searchCatalog(cat, q){
+  q = String(q || '').trim().toLowerCase();
+  if (!q) return cat.slice();
+  return cat.filter(p => p.sku.toLowerCase().includes(q) || p.name.toLowerCase().includes(q));
+}
+// Почему позицию нельзя брать в КП: null, если можно
+function skuProblem(sku, cat){
+  const m = cat.filter(p => p.sku === sku);
+  if (!m.length) return {level:'error', code:'NOT_FOUND', text: sku + ': артикул не найден в PIM.'};
+  if (m.length > 1) return {level:'error', code:'DUPLICATE_SKU', text: sku + ': в PIM два товара с одним артикулом, уточните у контент-менеджера.'};
+  const p = m[0];
+  if (p.status === 'discontinued'){
+    return {level:'error', code:'DISCONTINUED', analogSku: p.analogSku,
+      text: sku + ': товар снят с продажи, в КП не добавляется.' + (p.analogSku ? ' Есть аналог ' + p.analogSku + '.' : ' Аналог в PIM не указан, подберите замену.')};
+  }
+  if (p.price == null || p.price <= 0){
+    return {level:'error', code:'NO_PRICE', text: sku + ': нет цены в PIM, запросите цену у ответственного за прайс (допущение: кого именно, уточнить до запуска).'};
+  }
+  return null;
+}
+
+// ---------- проверки ----------
+function runChecks(state, catalog, today){
+  const out = [];
+  const req = state.request || {};
+  const missing = [];
+  if (!String(req.need || '').trim()) missing.push('что нужно');
+  const budget = Number(req.budget);
+  if (!(budget > 0)) missing.push('бюджет');
+  if (!req.date) missing.push('требуемая дата поставки');
+  if (missing.length) out.push({level:'error', code:'REQUEST_INCOMPLETE', text:'Не заполнен запрос клиента: ' + missing.join(', ') + '.'});
+  if (!state.lines.length) out.push({level:'error', code:'EMPTY_KP', text:'В КП нет позиций. Добавьте товары из каталога.'});
+  for (const l of state.lines){
+    const qty = Number(l.qty);
+    if (!Number.isInteger(qty) || qty < 1) out.push({level:'error', code:'QTY_INVALID', sku:l.sku, text:l.sku + ': количество должно быть целым числом не меньше 1.'});
+    if (!(l.discountPct >= 0 && l.discountPct <= 100)) out.push({level:'error', code:'DISCOUNT_RANGE', sku:l.sku, text:l.sku + ': скидка должна быть от 0 до 100%.'});
+    const prob = skuProblem(l.sku, catalog);
+    if (prob){ out.push(Object.assign({sku:l.sku}, prob)); continue; }
+    const rec = catalog.find(p => p.sku === l.sku);
+    if (req.date){
+      const arrive = addDays(today, rec.leadDays);
+      if (arrive > req.date){
+        out.push({level:'warning', code:'LEAD_LATE', sku:l.sku, text:l.sku + ': срок поставки ' + rec.leadDays + ' дн. (до ' + fmtDate(arrive) + ') позже требуемой даты клиента ' + fmtDate(req.date) + '. Предложите аналог или договоритесь о сроке.'});
+      }
+    }
+    if (rec.price !== l.priceAtAdd){
+      out.push({level:'warning', code:'PRICE_CHANGED', sku:l.sku, was:l.priceAtAdd, now:rec.price, text:l.sku + ': цена в каталоге изменилась после добавления, было ' + fmtRub(l.priceAtAdd) + ', стало ' + fmtRub(rec.price) + '.'});
+    }
+    if (l.discountPct > DISCOUNT_LIMIT){
+      out.push({level:'warning', code:'DISCOUNT_OVER', sku:l.sku, text:l.sku + ': скидка ' + l.discountPct + '% выше лимита ' + DISCOUNT_LIMIT + '%, нужно согласование руководителя.'});
+    }
+  }
+  if (!(state.kpDiscountPct >= 0 && state.kpDiscountPct <= 100)) out.push({level:'error', code:'DISCOUNT_RANGE', text:'Скидка на КП должна быть от 0 до 100%.'});
+  else if (state.kpDiscountPct > DISCOUNT_LIMIT){
+    out.push({level:'warning', code:'DISCOUNT_OVER', text:'Скидка на весь КП ' + state.kpDiscountPct + '% выше лимита ' + DISCOUNT_LIMIT + '%, нужно согласование руководителя.'});
+  }
+  if (budget > 0 && state.lines.length){
+    const t = stateTotals(state).totalKop;
+    if (t > toKop(budget)){
+      out.push({level:'warning', code:'OVER_BUDGET', text:'Итог ' + fmtKop(t) + ' выше бюджета клиента ' + fmtKop(toKop(budget)) + ' на ' + fmtKop(t - toKop(budget)) + '.'});
+    }
+  }
+  return out;
+}
+
+// ---------- снимок КП ----------
+function makeSnapshot(state, dealId, snapshots, todayIso, nowIso){
+  const own = snapshots.filter(s => s.dealId === dealId);
+  let kpNo, version;
+  if (own.length){
+    kpNo = own[0].kpNo;
+    version = Math.max.apply(null, own.map(s => s.version)) + 1;
+  } else {
+    const n = new Set(snapshots.map(s => s.kpNo)).size + 1;
+    kpNo = 'КП-' + todayIso.slice(0, 4) + '-' + String(n).padStart(4, '0');
+    version = 1;
+  }
+  const lines = state.lines.map(l => ({sku:l.sku, name:l.name, qty:Number(l.qty), price:l.priceAtAdd, discountPct:l.discountPct}));
+  const req = state.request;
+  return {
+    kpNo, version, dealId, createdAt: nowIso, date: todayIso, validUntil: addDays(todayIso, VALID_DAYS),
+    request: {need:String(req.need || '').trim(), budget:Number(req.budget), date:req.date, analogOk:!!req.analogOk},
+    lines, kpDiscountPct: state.kpDiscountPct,
+    totalKop: calcTotals(lines.map(l => ({price:l.price, qty:l.qty, discountPct:l.discountPct})), state.kpDiscountPct).totalKop
+  };
+}
+// где текущая цена каталога не равна цене в снимке
+function diffSnapshot(snap, catalog){
+  const out = [];
+  for (const l of snap.lines){
+    const rec = catalog.find(p => p.sku === l.sku);
+    const now = rec ? rec.price : null;
+    if (now !== l.price) out.push({sku:l.sku, name:l.name, was:l.price, now});
+  }
+  return out;
+}
+// сроки поставки позиций против требуемой даты
+function leadSummary(lines, catalog, startIso, reqDate){
+  const items = lines.map(l => {
+    const r = catalog.find(p => p.sku === l.sku);
+    return {sku:l.sku, name:l.name, days: r ? r.leadDays : null};
+  });
+  const known = items.filter(i => i.days != null);
+  const maxDays = known.length ? Math.max.apply(null, known.map(i => i.days)) : null;
+  const late = reqDate ? known.filter(i => addDays(startIso, i.days) > reqDate) : [];
+  return {items, latest: maxDays == null ? null : addDays(startIso, maxDays), late, ok: late.length === 0};
+}
+
+// ---------- самопроверка ----------
+function runSelfTest(){
+  const fails = [];
+  let n = 0;
+  const ok = (name, cond, info) => { n++; if (!cond) fails.push(name + (info !== undefined ? ' [' + info + ']' : '')); };
+  const eq = (name, got, exp) => ok(name, got === exp, 'получено ' + got + ', ожидалось ' + exp);
+  const TODAY = '2026-10-06';
+  const cat = applyOverrides(CATALOG, {});
+  const L = (sku, qty, disc) => { const p = CATALOG.find(x => x.sku === sku); return {sku, name:p.name, qty, priceAtAdd:p.price, discountPct:disc || 0}; };
+  const REQ = {need:'Нужен шиномонтажный станок', budget:'500000', date:'2026-11-30', analogOk:true};
+  const mk = (lines, over) => Object.assign({request:Object.assign({}, REQ), lines, kpDiscountPct:0}, over || {});
+  const codes = m => m.map(x => x.code);
+  const find = (m, code) => m.find(x => x.code === code);
+
+  // 1. данные (Ф0)
+  eq('каталог: 20 позиций', CATALOG.length, 20);
+  eq('каталог: одна позиция без цены', CATALOG.filter(p => p.price === null).length, 1);
+  eq('каталог: одна позиция с ценой 0', CATALOG.filter(p => p.price === 0).length, 1);
+  const disc = CATALOG.filter(p => p.status === 'discontinued');
+  eq('каталог: один снятый с продажи', disc.length, 1);
+  ok('каталог: аналог снятого существует и активен', disc[0] && CATALOG.some(p => p.sku === disc[0].analogSku && p.status === 'active'));
+  eq('каталог: два товара с долгим сроком', CATALOG.filter(p => p.leadDays >= 40).length, 2);
+  const dupSkus = CATALOG.map(p => p.sku).filter((s, i, a) => a.indexOf(s) !== i);
+  eq('каталог: один артикул встречается дважды', dupSkus.length, 1);
+  eq('каталог: 13 чистых активных со сроком 3-14', CATALOG.filter(p => p.status === 'active' && p.price > 0 && p.leadDays >= 3 && p.leadDays <= 14 && !dupSkus.includes(p.sku)).length, 13);
+  eq('сделки: две', DEALS.length, 2);
+
+  // 2. расчёт итога (ожидаемые числа посчитаны вручную)
+  // A: 10000*2 со скидкой 10% = 18000,00 + 2500,50*3 = 7501,50 -> 25501,50 руб
+  const A = calcTotals([{price:10000, qty:2, discountPct:10}, {price:2500.5, qty:3, discountPct:0}], 0);
+  eq('расчёт A: позиции', A.lineKops.join(','), '1800000,750150');
+  eq('расчёт A: итог (скидка на позицию)', A.totalKop, 2550150);
+  // B: 1000,00 + 333,33*3 = 999,99 -> 1999,99; скидка на КП 5% -> 1899,9905 -> 1899,99 руб
+  eq('расчёт B: итог (скидка на КП)', calcTotals([{price:1000, qty:1, discountPct:0}, {price:333.33, qty:3, discountPct:0}], 5).totalKop, 189999);
+  // C: 15990*2 -5% = 30381,00 ; 4200,10 -10% = 3780,09 ; сумма 34161,09 ; скидка на КП 3% -> 33136,2573 -> 33136,26 руб
+  const C = calcTotals([{price:15990, qty:2, discountPct:5}, {price:4200.1, qty:1, discountPct:10}], 3);
+  eq('расчёт C: подитог', C.subtotalKop, 3416109);
+  eq('расчёт C: итог (обе скидки)', C.totalKop, 3313626);
+  ok('формат рублей содержит знак ₽', fmtKop(2550150).includes('₽'));
+
+  // 3. «чистый» КП: 0 сообщений
+  const clean = mk([L('TC-ST-24', 1, 5), L('DG-SCAN-01', 1, 0), L('CP-100-500', 2, 0)], {kpDiscountPct:3});
+  eq('чистый КП: 0 сообщений', runChecks(clean, cat, TODAY).length, 0);
+
+  // 4. восемь проверок
+  const p1 = skuProblem('WB-TRK-20', cat), p1z = skuProblem('WB-CLIP-05', cat);
+  ok('проверка 1: нет цены (null) не добавляется', p1 && p1.code === 'NO_PRICE' && p1.level === 'error');
+  ok('проверка 1: цена 0 не добавляется', p1z && p1z.code === 'NO_PRICE');
+  ok('проверка 1: ошибка видна и в runChecks', (find(runChecks(mk([L('WB-TRK-20', 1)]), cat, TODAY), 'NO_PRICE') || {}).level === 'error');
+  const p2 = skuProblem('TC-ST-22', cat);
+  ok('проверка 2: снятый не добавляется, есть аналог', p2 && p2.code === 'DISCONTINUED' && p2.analogSku === 'TC-ST-24');
+  const p3 = skuProblem('AL-TGT-01', cat);
+  ok('проверка 3: дубль артикула не добавляется', p3 && p3.code === 'DUPLICATE_SKU' && p3.text.includes('контент-менеджер'));
+  const m4 = runChecks(mk([L('LFT-4P-5500', 1)], {request:Object.assign({}, REQ, {date:'2026-10-20'})}), cat, TODAY);
+  ok('проверка 4: срок позже даты клиента (предупреждение по позиции)', (find(m4, 'LEAD_LATE') || {}).sku === 'LFT-4P-5500' && find(m4, 'LEAD_LATE').level === 'warning');
+  ok('проверка 4: срок в запасе не срабатывает', !find(runChecks(mk([L('LFT-2P-4000', 1)]), cat, TODAY), 'LEAD_LATE'));
+  eq('имитация цены: +7% до рубля', bumpPrice(99500), 106465);
+  const cat2 = applyOverrides(CATALOG, {'TC-ST-24':106465});
+  const m5 = find(runChecks(mk([L('TC-ST-24', 1)]), cat2, TODAY), 'PRICE_CHANGED');
+  ok('проверка 5: цена изменилась, было/стало', m5 && m5.was === 99500 && m5.now === 106465 && m5.text.includes('было') && m5.text.includes('стало'));
+  ok('проверка 6: скидка по позиции выше лимита', !!find(runChecks(mk([L('TC-ST-24', 1, 12)]), cat, TODAY), 'DISCOUNT_OVER'));
+  ok('проверка 6: скидка на КП выше лимита', !!find(runChecks(mk([L('TC-ST-24', 1)], {kpDiscountPct:11}), cat, TODAY), 'DISCOUNT_OVER'));
+  ok('проверка 6: ровно лимит не срабатывает', !find(runChecks(mk([L('TC-ST-24', 1, 10)], {kpDiscountPct:10}), cat, TODAY), 'DISCOUNT_OVER'));
+  const lowBudget = mk([L('LFT-2P-4000', 1)], {request:Object.assign({}, REQ, {budget:'100000'})});
+  ok('проверка 7: итог выше бюджета', (find(runChecks(lowBudget, cat, TODAY), 'OVER_BUDGET') || {}).level === 'warning');
+  ok('проверка 7: итог равен бюджету не срабатывает', !find(runChecks(mk([L('LFT-2P-4000', 1)], {request:Object.assign({}, REQ, {budget:'189000'})}), cat, TODAY), 'OVER_BUDGET'));
+  const m8 = runChecks(mk([], {request:{need:'', budget:'', date:'', analogOk:false}}), cat, TODAY);
+  ok('проверка 8: пустой запрос и пустой КП блокируют', codes(m8).includes('REQUEST_INCOMPLETE') && codes(m8).includes('EMPTY_KP') && m8.every(x => x.level === 'error'));
+  ok('проверка 8: не хватает одной даты', (find(runChecks(mk([L('TC-ST-24', 1)], {request:Object.assign({}, REQ, {date:''})}), cat, TODAY), 'REQUEST_INCOMPLETE') || {}).level === 'error');
+
+  // 5. снимок и версии
+  const st1 = mk([L('TC-ST-24', 2, 5)], {kpDiscountPct:3});
+  // 99500*2=199000, -5% = 189050,00, -3% = 183378,50 руб
+  const s1 = makeSnapshot(st1, 'D-1001', [], TODAY, '2026-10-06T10:00:00.000Z');
+  eq('снимок: номер', s1.kpNo, 'КП-2026-0001');
+  eq('снимок: версия 1', s1.version, 1);
+  eq('снимок: итог в копейках', s1.totalKop, 18337850);
+  eq('снимок: срок действия цены +14 дней', s1.validUntil, '2026-10-20');
+  const s1json = JSON.stringify(s1);
+  const s2 = makeSnapshot(mk([L('TC-ST-24', 3, 5)], {kpDiscountPct:3}), 'D-1001', [s1], TODAY, '2026-10-06T11:00:00.000Z');
+  eq('снимок: версия 2 при повторном формировании', s2.version, 2);
+  eq('снимок: номер на сделку один', s2.kpNo, s1.kpNo);
+  ok('снимок: v1 не изменился', JSON.stringify(s1) === s1json);
+  const s3 = makeSnapshot(st1, 'D-1002', [s1, s2], TODAY, '2026-10-06T12:00:00.000Z');
+  ok('снимок: другая сделка получает новый номер, версия 1', s3.kpNo === 'КП-2026-0002' && s3.version === 1);
+  eq('сверка со снимком: цена выросла', diffSnapshot(s1, cat2).length, 1);
+  eq('сверка со снимком: расхождений нет', diffSnapshot(s1, cat).length, 0);
+
+  // 6. поиск
+  eq('поиск: артикул без учёта регистра', searchCatalog(CATALOG, 'tc-st').length, 2);
+  eq('поиск: часть названия без учёта регистра', searchCatalog(CATALOG, 'ШИНОМОНТАЖН').length, 3);
+
+  return {n, fails};
+}
+// ==PURE-END==
+
+// ================= приложение =================
+const $ = (s, r) => (r || document).querySelector(s);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'}[c]));
+const TODAY = () => isoDate(new Date());
+
+// localStorage: каждое обращение в try/catch, без него работаем в памяти
+const LS = (() => {
+  const mem = {};
+  return {
+    get(k, d){
+      try { const v = localStorage.getItem(k); if (v !== null) return JSON.parse(v); } catch (e) {}
+      return (k in mem) ? mem[k] : d;
+    },
+    set(k, v){
+      mem[k] = v;
+      try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {}
+    }
+  };
+})();
+const arr = v => Array.isArray(v) ? v : [];
+const obj = v => (v && typeof v === 'object' && !Array.isArray(v)) ? v : {};
+
+let snapshots = arr(LS.get('kp.snapshots', []));
+let overrides = obj(LS.get('kp.overrides', {}));
+let feedback = arr(LS.get('kp.feedback', []));
+let drafts = obj(LS.get('kp.drafts', {}));
+let dealId = LS.get('kp.deal', DEALS[0].id);
+if (!DEALS.some(d => d.id === dealId)) dealId = DEALS[0].id;
+let state = loadDraft(dealId);
+const ui = {tab:'build', view:'build', notice:null, diffs:{}, previewKey:null};
+
+function emptyDraft(){ return {request:{need:'', budget:'', date:'', analogOk:false}, lines:[], kpDiscountPct:0}; }
+function loadDraft(id){
+  const d = obj(drafts[id]), e = emptyDraft();
+  return {
+    request: Object.assign(e.request, obj(d.request)),
+    lines: arr(d.lines).filter(l => l && l.sku).map(l => ({sku:l.sku, name:String(l.name || l.sku), qty:Number(l.qty) || 0, priceAtAdd:Number(l.priceAtAdd), discountPct:Number(l.discountPct) || 0})),
+    kpDiscountPct: Number(d.kpDiscountPct) || 0
+  };
+}
+function saveDraft(){ drafts[dealId] = state; LS.set('kp.drafts', drafts); }
+const deal = () => DEALS.find(d => d.id === dealId);
+const effCat = () => applyOverrides(CATALOG, overrides);
+const lvlLabel = l => l === 'error' ? 'Ошибка' : 'Предупреждение';
+const kpNoOfDeal = () => { const s = snapshots.filter(x => x.dealId === dealId); return s.length ? s[0].kpNo : 'черновик'; };
+
+let toastTimer = null;
+function toast(msg){
+  const t = $('#toast');
+  t.textContent = msg; t.hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { t.hidden = true; }, 3200);
+}
+
+// ---------- сделка и запрос ----------
+function renderDeal(){
+  $('#deal-sel').innerHTML = DEALS.map(d => '<option value="' + esc(d.id) + '"' + (d.id === dealId ? ' selected' : '') + '>' + esc(d.id + ': ' + d.title) + '</option>').join('');
+  const c = deal().client;
+  $('#client').innerHTML = '<dt>Клиент</dt><dd>' + esc(c.name) + '</dd><dt>ИНН</dt><dd>' + esc(c.inn) + '</dd><dt>Контакт</dt><dd>' + esc(c.contact) + '</dd><dt>Телефон</dt><dd>' + esc(c.phone) + '</dd>';
+}
+function fillRequest(){
+  const r = state.request;
+  $('#req-need').value = r.need; $('#req-budget').value = r.budget; $('#req-date').value = r.date;
+  $('#req-analog').checked = !!r.analogOk;
+  $('#kp-disc').value = state.kpDiscountPct;
+}
+
+// ---------- каталог ----------
+function badgesOf(p, idx, cat){
+  const b = [];
+  if (p.status === 'discontinued') b.push(['err', 'Снят с продажи']);
+  if (p.price == null) b.push(['err', 'Нет цены']); else if (p.price === 0) b.push(['err', 'Цена 0']);
+  if (cat.filter(x => x.sku === p.sku).length > 1) b.push(['err', 'Дубль артикула в PIM']);
+  if (p.leadDays >= LONG_LEAD_DAYS) b.push(['warn', 'Долгий срок: ' + p.leadDays + ' дн.']);
+  if (p.price !== CATALOG[idx].price) b.push(['info', 'Цена изменена в PIM (имитация)']);
+  return b;
+}
+function noticeHtml(n){
+  return '<div class="chk ' + (n.level === 'error' ? 'err' : 'warn') + '" role="alert"><span class="lvl">' + lvlLabel(n.level) + '</span><span class="msg">' + esc(n.text) + '</span>' +
+    (n.analogSku ? '<button class="btn sm" type="button" data-act="show-analog" data-sku="' + esc(n.analogSku) + '">Показать аналог</button>' : '') + '</div>';
+}
+function renderCatalog(){
+  const cat = effCat();
+  const list = [];
+  cat.forEach((p, idx) => list.push({p, idx}));
+  const q = $('#search').value;
+  const found = searchCatalog(cat, q);
+  const shown = list.filter(x => found.includes(x.p));
+  const box = $('#results'), top = box.scrollTop;
+  $('#count').textContent = 'Найдено: ' + shown.length + ' из ' + cat.length + (Object.keys(overrides).length ? ' (есть изменённые цены)' : '');
+  box.innerHTML = shown.length ? shown.map(({p, idx}) => {
+    const bs = badgesOf(p, idx, cat);
+    const specs = Object.keys(p.specs).map(k => '<li>' + esc(k) + ': ' + esc(p.specs[k]) + '</li>').join('');
+    const priceTxt = p.price == null ? 'нет цены' : fmtRub(p.price);
+    const note = (ui.notice && ui.notice.key === idx) ? noticeHtml(ui.notice) : '';
+    return '<div class="pcard" data-idx="' + idx + '">' +
+      '<div class="head"><span class="nm">' + esc(p.name) + '</span><span class="pr">' + esc(priceTxt) + '</span></div>' +
+      '<div class="meta"><span class="mono">' + esc(p.sku) + '</span><span>' + esc(p.category) + '</span><span>' + (p.status === 'active' ? 'Активен' : 'Снят с продажи') + '</span><span>Срок поставки: ' + p.leadDays + ' дн.</span></div>' +
+      '<ul class="specs">' + specs + '</ul>' +
+      (bs.length ? '<div class="badges">' + bs.map(b => '<span class="badge ' + b[0] + '">' + esc(b[1]) + '</span>').join('') + '</div>' : '') +
+      note +
+      '<div class="btns"><button class="btn sm" type="button" data-act="add" data-idx="' + idx + '">В КП</button>' +
+      (p.price > 0 ? '<button class="btn sm" type="button" data-act="bump" data-idx="' + idx + '">Имитировать изменение цены в PIM</button>' : '') + '</div>' +
+      '</div>';
+  }).join('') : '<p class="empty">Ничего не найдено. Проверьте артикул или часть названия.</p>';
+  box.scrollTop = top;
+}
+function addToKp(idx){
+  const cat = effCat(), rec = cat[idx];
+  ui.notice = null;
+  const prob = skuProblem(rec.sku, cat);
+  if (prob){
+    ui.notice = Object.assign({key:idx, sku:rec.sku}, prob);
+    renderCatalog(); renderChecks();
+    return;
+  }
+  const ex = state.lines.find(l => l.sku === rec.sku);
+  if (ex) ex.qty = (Number(ex.qty) || 0) + 1;
+  else state.lines.push({sku:rec.sku, name:rec.name, qty:1, priceAtAdd:rec.price, discountPct:0});
+  saveDraft(); renderCatalog(); renderLines(); refreshCalc();
+  toast('Добавлено в КП: ' + rec.sku);
+}
+
+// ---------- состав КП ----------
+function renderLines(){
+  const box = $('#lines');
+  if (!state.lines.length){ box.innerHTML = '<p class="empty">В КП пока нет позиций. Найдите товар в каталоге и нажмите «В КП».</p>'; return; }
+  box.innerHTML = state.lines.map((l, i) =>
+    '<div class="line" data-i="' + i + '" data-sku="' + esc(l.sku) + '">' +
+    '<div class="l-name"><strong>' + esc(l.name) + '</strong><span class="mono">' + esc(l.sku) + '</span><span class="mono">Цена на момент добавления: ' + esc(fmtRub(l.priceAtAdd)) + '</span></div>' +
+    '<label class="f"><span>Кол-во</span><input type="number" min="1" step="1" value="' + esc(l.qty) + '" data-f="qty" autocomplete="off"></label>' +
+    '<label class="f"><span>Скидка, %</span><input type="number" min="0" max="100" step="0.5" value="' + esc(l.discountPct) + '" data-f="disc" autocomplete="off"></label>' +
+    '<div class="l-sum"><span>Сумма</span><b data-sum></b></div>' +
+    '<button class="btn sm" type="button" data-act="remove" data-i="' + i + '">Удалить</button></div>'
+  ).join('');
+}
+function refreshCalc(){
+  const t = stateTotals(state);
+  document.querySelectorAll('#lines .line').forEach((el, i) => { $('[data-sum]', el).textContent = fmtKop(t.lineKops[i]); });
+  $('#t-sub').textContent = fmtKop(t.subtotalKop);
+  $('#t-disc').textContent = t.kpDiscountKop ? '-' + fmtKop(t.kpDiscountKop) : fmtKop(0);
+  $('#t-total').textContent = fmtKop(t.totalKop);
+  renderChecks();
+}
+
+// ---------- проверки ----------
+let lastMsgs = [];
+function renderChecks(){
+  const msgs = runChecks(state, effCat(), TODAY());
+  lastMsgs = msgs;
+  const errs = msgs.filter(m => m.level === 'error').length, warns = msgs.length - errs;
+  $('#chk-sum').textContent = msgs.length ? ('Ошибок: ' + errs + ', предупреждений: ' + warns) : '';
+  $('#notice').innerHTML = ui.notice ? '<p class="chksum">Не добавлено в КП:</p>' + noticeHtml(ui.notice) : '';
+  $('#checks').innerHTML = msgs.length ? msgs.map(m => {
+    let btn = '';
+    if (m.code === 'PRICE_CHANGED') btn = '<button class="btn sm" type="button" data-act="accept-price" data-sku="' + esc(m.sku) + '">Принять новую цену</button>';
+    else if (m.analogSku) btn = '<button class="btn sm" type="button" data-act="show-analog" data-sku="' + esc(m.analogSku) + '">Показать аналог</button>';
+    return '<li class="chk ' + (m.level === 'error' ? 'err' : 'warn') + '"><span class="lvl">' + lvlLabel(m.level) + '</span><span class="msg">' + esc(m.text) + '</span>' + btn + '</li>';
+  }).join('') : '<li class="chk ok">В составе КП замечаний нет.</li>';
+  document.querySelectorAll('#lines .line').forEach(el => {
+    const mine = msgs.filter(m => m.sku === el.dataset.sku);
+    el.classList.toggle('has-err', mine.some(m => m.level === 'error'));
+    el.classList.toggle('has-warn', !mine.some(m => m.level === 'error') && mine.length > 0);
+  });
+  $('#btn-gen').disabled = $('#pv-gen').disabled = errs > 0;
+  ['#btn-gen', '#pv-gen'].forEach(id => { if (errs > 0) $(id).title = 'Недоступно: исправьте ошибки в блоке «Проверки»'; else $(id).removeAttribute('title'); });
+  // акцент один на экран: «Сформировать КП», пока она доступна; иначе пример запроса, пока запрос пуст
+  $('#btn-gen').classList.toggle('primary', errs === 0);
+  $('#btn-demo').classList.toggle('primary', errs > 0 && msgs.some(m => m.code === 'REQUEST_INCOMPLETE'));
+  $('#gen-hint').textContent = errs > 0 ? 'Формирование недоступно, пока есть ошибки.' : (warns > 0 ? 'Есть предупреждения: перед формированием попросим подтверждение.' : '');
+}
+
+// ---------- формирование и история ----------
+function generate(){
+  const msgs = runChecks(state, effCat(), TODAY());
+  if (msgs.some(m => m.level === 'error')){ toast('Есть ошибки, формирование недоступно'); return; }
+  if (msgs.length && !confirm('В КП есть предупреждения:\n\n- ' + msgs.map(m => m.text).join('\n- ') + '\n\nСформировать КП всё равно?')) return;
+  const snap = makeSnapshot(state, dealId, snapshots, TODAY(), new Date().toISOString());
+  snapshots.push(snap);
+  LS.set('kp.snapshots', snapshots);
+  renderHistory();
+  toast('Сохранён ' + snap.kpNo + ', версия ' + snap.version);
+  if (ui.view === 'preview') openPreview(snap);
+}
+function renderHistory(){
+  const mine = snapshots.filter(s => s.dealId === dealId).slice().reverse();
+  $('#history').innerHTML = mine.length ? '<ul class="hist">' + mine.map(s => {
+    const key = s.kpNo + '/' + s.version;
+    const d = ui.diffs[key];
+    let diffHtml = '';
+    if (d) diffHtml = d.length
+      ? '<div class="diff"><b>Есть расхождения с каталогом:</b><ul>' + d.map(x => '<li>' + esc(x.sku) + ': было ' + esc(fmtRub(x.was)) + ', стало ' + esc(x.now == null ? 'цены нет' : fmtRub(x.now)) + '</li>').join('') + '</ul></div>'
+      : '<div class="diff"><b>Расхождений нет:</b> цены в каталоге совпадают со снимком.</div>';
+    return '<li><div><b>' + esc(s.kpNo) + '</b>, версия ' + s.version + ', ' + esc(fmtDate(s.date || s.createdAt.slice(0, 10))) + ', ' + esc(fmtKop(s.totalKop)) + '</div>' +
+      '<div class="btns"><button class="btn sm" type="button" data-act="open-snap" data-key="' + esc(key) + '">Открыть</button>' +
+      '<button class="btn sm" type="button" data-act="diff-snap" data-key="' + esc(key) + '">Сверить с каталогом</button></div>' + diffHtml + '</li>';
+  }).join('') + '</ul>' : '<p class="empty">По этой сделке КП ещё не формировались.</p>';
+}
+const snapByKey = key => snapshots.find(s => s.kpNo + '/' + s.version === key);
+
+// ---------- предпросмотр ----------
+function renderDoc(m, cat){
+  const dl = DEALS.find(d => d.id === m.dealId) || deal(), c = dl.client;
+  const t = calcTotals(m.lines.map(l => ({price:l.price, qty:l.qty, discountPct:l.discountPct})), m.kpDiscountPct);
+  const start = m.date || m.createdAt.slice(0, 10), bud = toKop(m.request.budget || 0);
+  const ls = leadSummary(m.lines, cat, start, m.request.date);
+  const units = m.lines.reduce((a, l) => a + l.qty, 0);
+  const budLine = bud > 0
+    ? (m.totalKop <= bud ? 'Итог ' + fmtKop(m.totalKop) + ' укладывается в ваш бюджет ' + fmtKop(bud) + ', запас ' + fmtKop(bud - m.totalKop) + '.'
+                         : 'Итог ' + fmtKop(m.totalKop) + ' выше вашего бюджета ' + fmtKop(bud) + ' на ' + fmtKop(m.totalKop - bud) + '. Готовы обсудить состав.')
+    : '';
+  const leadLine = ls.latest
+    ? (ls.ok ? 'Самая поздняя поставка по КП: ' + fmtDate(ls.latest) + ', это не позже требуемой вами даты ' + fmtDate(m.request.date) + '.'
+             : 'Самая поздняя поставка по КП: ' + fmtDate(ls.latest) + ', это позже требуемой вами даты ' + fmtDate(m.request.date) + '. Позже срока: ' + ls.late.map(i => i.sku + ' (' + i.days + ' дн.)').join(', ') + '. Обсудим сроки или подберём аналог.')
+    : 'Сроки поставки уточняются.';
+  const rows = m.lines.map((l, i) => {
+    const r = cat.find(p => p.sku === l.sku);
+    return '<tr><td class="num">' + (i + 1) + '</td><td>' + esc(l.sku) + '</td><td>' + esc(l.name) + '</td><td class="num">' + l.qty + '</td><td class="num">' + esc(fmtRub(l.price)) + '</td><td class="num">' + (l.discountPct ? esc(l.discountPct) + '%' : '0%') + '</td><td class="num">' + (r ? r.leadDays + ' дн.' : 'уточняется') + '</td><td class="num">' + esc(fmtKop(t.lineKops[i])) + '</td></tr>';
+  }).join('');
+  return '<div class="doc-head"><div><div class="doc-seller">' + esc(SELLER) + '</div><div>Коммерческое предложение</div></div>' +
+    '<div class="doc-meta"><b>' + esc(m.kpNo) + '</b>, версия ' + m.version + '<br>Дата: ' + esc(fmtDate(start)) + '<br>Цена действует до: ' + esc(fmtDate(m.validUntil)) + '</div></div>' +
+    '<section><h3>Клиент</h3><p><b>' + esc(c.name) + '</b>, ИНН ' + esc(c.inn) + '</p><p>Контакт: ' + esc(c.contact) + ', ' + esc(c.phone) + '</p></section>' +
+    '<section><h3>Ваш запрос</h3><p>' + esc(m.request.need).replace(/\n/g, '<br>') + '</p><p>Бюджет: ' + esc(fmtKop(bud)) + '. Нужно получить до: ' + esc(fmtDate(m.request.date)) + '. Аналог допустим: ' + (m.request.analogOk ? 'да' : 'нет') + '.</p></section>' +
+    '<section><h3>Как мы его закрываем</h3><ul><li>Подобрано позиций: ' + m.lines.length + ', единиц оборудования: ' + units + '.</li>' + (budLine ? '<li>' + esc(budLine) + '</li>' : '') + '<li>' + esc(leadLine) + '</li></ul></section>' +
+    '<div class="doc-tablewrap"><table><thead><tr><th>№</th><th>Артикул</th><th>Наименование</th><th>Кол-во</th><th>Цена</th><th>Скидка</th><th>Срок</th><th>Сумма</th></tr></thead><tbody>' + rows + '</tbody></table></div>' +
+    '<div class="doc-tot"><div><span>Сумма по позициям</span><span>' + esc(fmtKop(t.subtotalKop)) + '</span></div>' +
+    (m.kpDiscountPct ? '<div><span>Скидка на КП, ' + esc(m.kpDiscountPct) + '%</span><span>-' + esc(fmtKop(t.kpDiscountKop)) + '</span></div>' : '') +
+    '<div class="big"><span>Итого</span><span>' + esc(fmtKop(m.totalKop)) + '</span></div></div>' +
+    '<p class="doc-note">Цены указаны в рублях и действуют до ' + esc(fmtDate(m.validUntil)) + '. Прототип: все товары, цены и клиенты условные.</p>';
+}
+function openPreview(snap){
+  const cat = effCat();
+  const draft = !snap;
+  const m = snap || makeSnapshot(state, dealId, snapshots, TODAY(), new Date().toISOString());
+  $('#doc').innerHTML = renderDoc(m, cat);
+  $('#pv-note').textContent = draft
+    ? 'Предварительный просмотр: ' + m.kpNo + ', версия ' + m.version + ' (после формирования). ' + (lastMsgs.some(x => x.level === 'error') ? 'В КП есть ошибки, это черновик.' : '')
+    : 'Сохранённый снимок ' + m.kpNo + ', версия ' + m.version + '. Он не меняется при правках.';
+  ui.view = 'preview'; ui.tab = 'build';
+  showView();
+  window.scrollTo(0, 0);
+}
+
+// ---------- вкладки ----------
+function showView(){
+  $('#view-build').hidden = !(ui.tab === 'build' && ui.view === 'build');
+  $('#view-preview').hidden = !(ui.tab === 'build' && ui.view === 'preview');
+  $('#view-how').hidden = ui.tab !== 'how';
+  document.querySelectorAll('.tab').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === ui.tab)));
+}
+
+// ---------- схема «как сейчас -> как будет» ----------
+function buildScheme(){
+  const svg = $('#scheme');
+  const now = ['Разговор с клиентом', 'Поиск в PIM', 'Копирование в Word', 'Подстановка цен', 'Расчёт', 'Самопроверка', 'PDF', 'Прикрепить в Битрикс24', 'Отправка'];
+  const nxt = [{t:'Разговор с клиентом'}, {t:'Запрос клиента', cap:'позже: из расшифровки разговора', later:1}, {t:'Подбор в «Сборщике КП»', cap:'поиск по каталогу PIM'},
+    {t:'Проверки', auto:1}, {t:'PDF и снимок КП', auto:1}, {t:'В сделку Битрикс24', auto:1, cap:'файл, позиции, сумма'}, {t:'Отправка клиенту'}];
+  const wrapText = (s, max) => { const w = s.split(' '), out = []; let cur = ''; w.forEach(x => { if ((cur + ' ' + x).trim().length > max && cur){ out.push(cur); cur = x; } else cur = (cur + ' ' + x).trim(); }); out.push(cur); return out; };
+  let h = '<defs><marker id="sv-ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="sv-arrow"/></marker></defs>';
+  h += '<text class="sv-title" x="0" y="20">Как сейчас: 9 шагов, всё вручную</text>';
+  const w1 = 116, st1 = 135.5, y1 = 34, bh = 80;
+  now.forEach((t, i) => {
+    const x = i * st1, lines = wrapText(t, 13), ty = y1 + 44 - (lines.length - 1) * 8;
+    h += '<rect class="sv-box" x="' + x + '" y="' + y1 + '" width="' + w1 + '" height="' + bh + '" rx="8"/><text class="sv-num" x="' + (x + 8) + '" y="' + (y1 + 16) + '">' + (i + 1) + '</text>';
+    lines.forEach((ln, k) => { h += '<text x="' + (x + w1 / 2) + '" y="' + (ty + k * 16) + '" text-anchor="middle">' + esc(ln) + '</text>'; });
+    if (i < now.length - 1) h += '<path class="sv-line" d="M' + (x + w1 + 2) + ',' + (y1 + bh / 2) + ' L' + (x + st1 - 3) + ',' + (y1 + bh / 2) + '" marker-end="url(#sv-ar)"/>';
+  });
+  h += '<text class="sv-title" x="0" y="168">Как будет: 7 шагов, 3 из них инструмент делает сам</text>';
+  const w2 = 150, st2 = 175, y2 = 182, bh2 = 100;
+  nxt.forEach((s, i) => {
+    const x = i * st2, auto = s.auto, tl = wrapText(s.t, 17), n1 = tl.length;
+    h += '<rect class="' + (auto ? 'sv-auto' : 'sv-box') + '" x="' + x + '" y="' + y2 + '" width="' + w2 + '" height="' + bh2 + '" rx="8"/><text class="sv-num" x="' + (x + 8) + '" y="' + (y2 + 16) + '">' + (i + 1) + '</text>';
+    if (auto) h += '<text class="sv-tag" x="' + (x + w2 - 8) + '" y="' + (y2 + 16) + '" text-anchor="end">АВТО</text>';
+    tl.forEach((ln, k) => { h += '<text x="' + (x + w2 / 2) + '" y="' + (y2 + 38 + k * 16) + '" text-anchor="middle">' + esc(ln) + '</text>'; });
+    if (s.cap){
+      const cl = wrapText(s.cap, 22), cy = y2 + 38 + n1 * 16 + 4;
+      if (s.later) h += '<rect class="sv-later" x="' + (x + 8) + '" y="' + (cy - 12) + '" width="' + (w2 - 16) + '" height="' + (cl.length * 14 + 6) + '" rx="6"/>';
+      cl.forEach((ln, k) => { h += '<text class="sv-cap" x="' + (x + w2 / 2) + '" y="' + (cy + k * 14) + '" text-anchor="middle">' + esc(ln) + '</text>'; });
+    }
+    if (i < nxt.length - 1) h += '<path class="sv-line" d="M' + (x + w2 + 2) + ',' + (y2 + bh2 / 2) + ' L' + (x + st2 - 3) + ',' + (y2 + bh2 / 2) + '" marker-end="url(#sv-ar)"/>';
+  });
+  svg.innerHTML = h;
+}
+
+// ---------- обратная связь ----------
+function renderFeedback(){
+  const box = $('#fb-list');
+  box.innerHTML = feedback.length ? feedback.slice().reverse().map(f =>
+    '<div class="fbitem"><div class="m">' + esc(new Date(f.at).toLocaleString('ru-RU')) + ', сделка ' + esc(f.dealId) + ', ' + esc(f.kpNo) + '</div><p>' + esc(f.text) + '</p></div>'
+  ).join('') : '<p class="empty">Комментариев пока нет.</p>';
+}
+function openFeedback(){
+  const dlg = $('#fb-dialog');
+  $('#fb-ctx').textContent = 'Сделка ' + dealId + ', ' + kpNoOfDeal();
+  $('#fb-text').value = '';
+  if (dlg.showModal) dlg.showModal(); else dlg.setAttribute('open', '');
+  $('#fb-text').focus();
+}
+function closeFeedback(){ const dlg = $('#fb-dialog'); if (dlg.close) dlg.close(); else dlg.removeAttribute('open'); }
+function saveFeedback(){
+  const text = $('#fb-text').value.trim();
+  if (!text){ toast('Напишите, что неудобно или что предложить'); return; }
+  feedback.push({at:new Date().toISOString(), dealId, kpNo:kpNoOfDeal(), text});
+  LS.set('kp.feedback', feedback);
+  renderFeedback(); closeFeedback(); toast('Комментарий сохранён');
+}
+
+// ---------- тема ----------
+function applyTheme(t){
+  if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t); else document.documentElement.removeAttribute('data-theme');
+  $('#theme-btn').textContent = 'Тема: ' + (t === 'light' ? 'светлая' : t === 'dark' ? 'тёмная' : 'авто');
+}
+
+// ---------- события ----------
+function renderAll(){ renderDeal(); fillRequest(); renderCatalog(); renderLines(); refreshCalc(); renderHistory(); renderFeedback(); showView(); }
+
+document.addEventListener('click', e => {
+  const tab = e.target.closest('.tab');
+  if (tab){ ui.tab = tab.dataset.tab; showView(); return; }
+  const b = e.target.closest('[data-act]');
+  if (!b) return;
+  const act = b.dataset.act;
+  if (act === 'add') addToKp(+b.dataset.idx);
+  else if (act === 'bump'){
+    const p = effCat()[+b.dataset.idx];
+    overrides[p.sku] = bumpPrice(p.price);
+    LS.set('kp.overrides', overrides);
+    renderCatalog(); renderChecks();
+    toast(p.sku + ': в PIM цена стала ' + fmtRub(overrides[p.sku]) + ' (имитация)');
+  }
+  else if (act === 'remove'){ state.lines.splice(+b.dataset.i, 1); saveDraft(); renderLines(); refreshCalc(); }
+  else if (act === 'accept-price'){
+    const rec = effCat().find(p => p.sku === b.dataset.sku), l = state.lines.find(x => x.sku === b.dataset.sku);
+    if (rec && l){ l.priceAtAdd = rec.price; saveDraft(); renderLines(); refreshCalc(); toast('Принята новая цена ' + fmtRub(rec.price)); }
+  }
+  else if (act === 'show-analog'){ $('#search').value = b.dataset.sku; renderCatalog(); $('#results').scrollTop = 0; $('#search').scrollIntoView({block:'center'}); }
+  else if (act === 'open-snap'){ const s = snapByKey(b.dataset.key); if (s) openPreview(s); }
+  else if (act === 'diff-snap'){ const s = snapByKey(b.dataset.key); if (s){ ui.diffs[b.dataset.key] = diffSnapshot(s, effCat()); renderHistory(); } }
+});
+document.addEventListener('input', e => {
+  const t = e.target, id = t.id;
+  if (id === 'req-need') state.request.need = t.value;
+  else if (id === 'req-budget') state.request.budget = t.value;
+  else if (id === 'req-date') state.request.date = t.value;
+  else if (id === 'req-analog') state.request.analogOk = t.checked;
+  else if (id === 'kp-disc') state.kpDiscountPct = parseFloat(t.value) || 0;
+  else if (id === 'search'){ renderCatalog(); return; }
+  else if (t.dataset && t.dataset.f){
+    const row = t.closest('.line'), l = state.lines[+row.dataset.i];
+    if (t.dataset.f === 'qty') l.qty = parseInt(t.value, 10) || 0; else l.discountPct = parseFloat(t.value) || 0;
+  } else return;
+  saveDraft(); refreshCalc();
+});
+$('#deal-sel').addEventListener('change', e => {
+  dealId = e.target.value; LS.set('kp.deal', dealId);
+  state = loadDraft(dealId); ui.notice = null; ui.diffs = {}; ui.view = 'build';
+  renderAll();
+});
+$('#btn-demo').addEventListener('click', () => {
+  const d = DEMO_REQUESTS[dealId];
+  state.request = {need:d.need, budget:String(d.budget), date:addDays(TODAY(), d.days), analogOk:d.analogOk};
+  saveDraft(); fillRequest(); refreshCalc();
+});
+$('#btn-reset-cat').addEventListener('click', () => { overrides = {}; LS.set('kp.overrides', overrides); renderCatalog(); renderChecks(); toast('Каталог сброшен к исходным ценам'); });
+$('#btn-clear').addEventListener('click', () => {
+  if (!confirm('Очистить черновик КП по этой сделке? Сохранённые версии останутся.')) return;
+  state = emptyDraft(); saveDraft(); ui.notice = null; fillRequest(); renderLines(); refreshCalc(); renderCatalog();
+});
+$('#btn-preview').addEventListener('click', () => openPreview(null));
+$('#btn-gen').addEventListener('click', generate);
+$('#pv-gen').addEventListener('click', generate);
+$('#pv-back').addEventListener('click', () => { ui.view = 'build'; showView(); });
+$('#pv-print').addEventListener('click', () => window.print());
+$('#fab').addEventListener('click', openFeedback);
+$('#fb-cancel').addEventListener('click', closeFeedback);
+$('#fb-save').addEventListener('click', saveFeedback);
+$('#theme-btn').addEventListener('click', () => {
+  const cur = LS.get('kp.theme', 'auto'), nx = cur === 'auto' ? 'light' : cur === 'light' ? 'dark' : 'auto';
+  LS.set('kp.theme', nx); applyTheme(nx);
+});
+
+applyTheme(LS.get('kp.theme', 'auto'));
+buildScheme();
+renderAll();
+
+if (location.search.indexOf('selftest') >= 0){
+  const banner = $('#selftest-banner');
+  let r;
+  try { r = runSelfTest(); } catch (err) { r = {n:0, fails:['исключение: ' + err.message]}; }
+  const okAll = r.fails.length === 0;
+  const msg = okAll ? 'SELFTEST OK ' + r.n + '/' + r.n : 'SELFTEST FAIL ' + (r.n - r.fails.length) + '/' + r.n + ': ' + r.fails.join('; ');
+  banner.textContent = msg; banner.className = okAll ? 'pass' : 'fail'; banner.hidden = false;
+  (okAll ? console.log : console.error)(msg);
+}
+</script>
+</body>
+</html>
